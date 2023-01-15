@@ -46,14 +46,6 @@ def get_workers(tx):
     return employees
 
 
-@app.route('/employees', methods=["GET"])
-def get_workers_route():
-    with driver.session() as session:
-        workers = session.execute_read(get_workers)
-    response = {'workers': workers}
-    return jsonify(response), 200
-
-
 def add_worker(tx, name, surname, position, department, role):
     query = f"MATCH (m: Employee) WHERE m.name='{name}' AND m.surname='{surname}' RETURN m"
     results = tx.run(query).data()
@@ -78,27 +70,34 @@ def add_worker(tx, name, surname, position, department, role):
         return False
 
 
-@app.route('/employees', methods=["POST"])
-def add_worker_route():
-    data = request.get_json()
+@app.route('/employees', methods=["GET", "POST"])
+def get_post_workers_route():
+    if request.method == 'GET':
+        with driver.session() as session:
+            workers = session.execute_read(get_workers)
+        response = {'workers': workers}
+        return jsonify(response), 200
 
-    name = data['name']
-    surname = data['surname']
-    position = data['position']
-    department = data['department']
-    role = data['role']
+    elif request.method == 'POST':
+        data = request.get_json()
 
-    if (name == '' or surname == '' or position == '' or department == '' or role == ''):
-        return jsonify("Complete your request"), 405
+        name = data['name']
+        surname = data['surname']
+        position = data['position']
+        department = data['department']
+        role = data['role']
 
-    with driver.session() as session:
-        res = session.execute_write(
-            add_worker, name, surname, position, department, role)
+        if (name == '' or surname == '' or position == '' or department == '' or role == ''):
+            return jsonify("Complete your request"), 405
 
-    if (res == False):
-        return jsonify("Name and surname already exists in our db"), 400
+        with driver.session() as session:
+            res = session.execute_write(
+                add_worker, name, surname, position, department, role)
 
-    return jsonify("User has been added"), 200
+        if (res == False):
+            return jsonify("Name and surname already exists in our db"), 400
+
+        return jsonify("User has been added"), 200
 
 
 def update_worker(tx, obj):
@@ -129,30 +128,6 @@ def update_worker(tx, obj):
         return True
 
 
-@app.route("/employees/<string:id>", methods=["PUT"])
-def update_worker_route(id):
-    data = request.get_json()
-    name = data['name']
-    surname = data['surname']
-    position = data['position']
-    department = data['department']
-    role = data['role']
-
-    data['id'] = id
-
-    if (name == '' or surname == '' or position == '' or department == '' or role == '' or id == ''):
-        return jsonify("Complete your request"), 405
-
-    with driver.session() as session:
-        res = session.execute_write(
-            update_worker, data)
-
-    if (res == False):
-        return jsonify("User not found"), 404
-
-    return jsonify("User has been updated"), 200
-
-
 def delete_worker(tx, id):
     query = f"MATCH (m:Employee)-[r]-(d:Department) WHERE ID(m) = {id} RETURN m, d, r"
     results = tx.run(query).data()
@@ -167,16 +142,40 @@ def delete_worker(tx, id):
         return True
 
 
-@app.route("/employees/<string:id>", methods=["DELETE"])
-def delete_worker_route(id):
-    with driver.session() as session:
-        res = session.execute_write(
-            delete_worker, id)
+@app.route("/employees/<string:id>", methods=["PUT", "DELETE"])
+def delete_update_worker_route(id):
+    if request.method == 'PUT':
+        data = request.get_json()
 
-    if (res == False):
-        return jsonify("User not found"), 404
+        name = data['name']
+        surname = data['surname']
+        position = data['position']
+        department = data['department']
+        role = data['role']
 
-    return jsonify("User has been deleted"), 200
+        data['id'] = id
+
+        if (name == '' or surname == '' or position == '' or department == '' or role == '' or id == ''):
+            return jsonify("Complete your request"), 405
+
+        with driver.session() as session:
+            res = session.execute_write(
+                update_worker, data)
+
+        if (res == False):
+            return jsonify("User not found"), 404
+
+        return jsonify("User has been updated"), 200
+
+    elif request.method == "DELETE":
+        with driver.session() as session:
+            res = session.execute_write(
+                delete_worker, id)
+
+        if (res == False):
+            return jsonify("User not found"), 404
+
+        return jsonify("User has been deleted"), 200
 
 
 def get_workers_suboordinates(tx, id):
